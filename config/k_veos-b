@@ -1,0 +1,66 @@
+hostname veos-b
+ip name-server vrf default 8.8.8.8
+!
+spanning-tree mode mstp
+!
+aaa authorization exec default local
+!
+no aaa root
+!
+username admin privilege 15 role network-admin secret sha512 $6$bQgvXfbDIfokCvCe$BH6KgVI.MZfWgN8T6U.EDEHoqqdtFDEb3ZdaP6w7BNvijkZRSZGvypeYG.Th9NMQcd0Ppi0A.QXgLSdlCF.lT.
+!
+interface Ethernet1
+   no switchport
+   ip address 10.0.0.0/31
+!
+interface Ethernet2
+   no switchport
+   ip address 10.0.0.2/31
+!
+interface Ethernet3
+   no switchport
+   ip address 10.0.0.4/31
+!
+interface Loopback0
+   ip address 1.1.1.1/32
+!
+ip routing
+!
+router ospf 1
+   passive-interface Management1
+   network 0.0.0.0/0 area 0.0.0.0
+   max-lsa 12000
+!
+end
+!
+interface Management1
+   ip address 172.20.0.2/16
+   no shutdown
+   exit
+!
+ip route 0.0.0.0/0 172.20.0.1
+!
+!
+interface Management1
+   ip address 172.21.0.2/16
+   no shutdown
+   exit
+!
+ip route 0.0.0.0/0 172.21.0.1
+!
+!
+interface Management1
+   ip address 172.19.0.2/16
+   no shutdown
+   exit
+!
+ip route 0.0.0.0/0 172.19.0.1
+!
+!
+interface Management1
+   ip address 172.20.0.2/16
+   no shutdown
+   exit
+!
+ip route 0.0.0.0/0 172.20.0.1
+!

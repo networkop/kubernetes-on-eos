@@ -1,0 +1,13 @@
+VERSION: 2
+CONF_DIR: ./config
+PREFIX: k
+driver: veth
+links:
+  - endpoints: ["veos-b:eth0", "veos-l1:eth0", "veos-l2:eth0", "host-c1:eth0", "host-s1:eth0", "host-s2:eth0"]
+    driver: bridge
+  - endpoints: ["veos-b:eth1", "host-c1:eth1:10.0.0.1/31"]
+  - endpoints: ["veos-b:eth2", "veos-l1:eth1"]
+  - endpoints: ["veos-b:eth3", "veos-l2:eth1"]
+  - endpoints: ["veos-l1:eth2", "host-s1:eth1:10.0.0.7/31"]
+  - endpoints: ["veos-l2:eth2", "host-s2:eth1:10.0.0.9/31"]
+
