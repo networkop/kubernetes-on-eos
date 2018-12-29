@@ -13,6 +13,7 @@ docker-topo --create k8s.yml
 
 # Generate certificates
 
+```
 host-c1
 sudo su
 apk add --no-cache curl openssh
@@ -25,8 +26,9 @@ chmod +x cfssl cfssljson
 sudo mv cfssl cfssljson /usr/local/bin/
 
 mkdir k8s && cd k8s
-
+```
 * CA configuration file
+```
 cat > ca-config.json <<EOF
 {
   "signing": {
@@ -42,8 +44,9 @@ cat > ca-config.json <<EOF
   }
 }
 EOF
-
+```
 * CA request
+```
 cat > ca-csr.json <<EOF
 {
   "CN": "Kubernetes",
@@ -61,15 +64,15 @@ cat > ca-csr.json <<EOF
   ]
 }
 EOF
-
+```
 ## Certificate setup
 
 ### Generate certs
-
+```
 cfssl gencert -initca ca-csr.json | cfssljson -bare ca
-
+```
 * Admin client CSR
-
+```
 cat > admin-csr.json <<EOF
 {
   "CN": "admin",
@@ -87,17 +90,18 @@ cat > admin-csr.json <<EOF
   ]
 }
 EOF
-
+```
 * Generate admin client certificate + key
+```
 cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
   -config=ca-config.json \
   -profile=kubernetes \
   admin-csr.json | cfssljson -bare admin
-
+```
 * kubelet certificates
-
+```
 for instance in veos-l1 veos-l2 veos-b; do
 cat > ${instance}-csr.json <<EOF
 {
@@ -127,9 +131,9 @@ cfssl gencert \
   -profile=kubernetes \
   ${instance}-csr.json | cfssljson -bare ${instance}
 done
-
+```
 * kube-proxy CSR
-
+```
 cat > kube-proxy-csr.json <<EOF
 {
   "CN": "system:kube-proxy",
@@ -147,17 +151,18 @@ cat > kube-proxy-csr.json <<EOF
   ]
 }
 EOF
-
+```
 * kube-proxy cert
-
+```
 cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
   -config=ca-config.json \
   -profile=kubernetes \
   kube-proxy-csr.json | cfssljson -bare kube-proxy
-
+```
 * API server CSR
+```
 cat > kubernetes-csr.json <<EOF
 {
   "CN": "kubernetes",
@@ -175,9 +180,9 @@ cat > kubernetes-csr.json <<EOF
   ]
 }
 EOF
-
+```
 * API  server certs
-
+```
 cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
@@ -185,33 +190,34 @@ cfssl gencert \
   -hostname=1.1.1.1,10.10.0.1,127.0.0.1,kubernetes.default \
   -profile=kubernetes \
   kubernetes-csr.json | cfssljson -bare kubernetes
-
+```
 ### Distribute certs
-
+```
 for instance in veos-b veos-l1 veos-l2; do
 ssh -t admin@$instance "mkdir k8s"
 done
-
+```
 * to master node
-
+```
 for instance in veos-b; do
 scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem admin@$instance:/mnt/flash/k8s/
 done
-
+```
 * to worker nodes
-
+```
 for instance in veos-b veos-l1 veos-l2; do
 scp ca.pem ${instance}-key.pem ${instance}.pem admin@$instance:/mnt/flash/k8s/
 done
-
+```
 ## KUBECONFIG FILES
 
 Upload kubectl binaries to to host-c1
-
+```
 scp admin@172.20.0.2:/home/kubernetes-on-eos/bin/kubectl .
 export PATH=$PATH:$(pwd)
-
+```
 * for worker nodes
+```
 for instance in veos-b veos-l1 veos-l2; do
   kubectl config set-cluster kubernetes \
     --certificate-authority=ca.pem \
@@ -232,9 +238,9 @@ for instance in veos-b veos-l1 veos-l2; do
 
   kubectl config use-context default --kubeconfig=${instance}.kubeconfig
 done
-
+```
 * for kube-proxy
-
+```
 kubectl config set-cluster kubernetes \
   --certificate-authority=ca.pem \
   --embed-certs=true \
@@ -250,15 +256,15 @@ kubectl config set-context default \
   --user=kube-proxy \
   --kubeconfig=kube-proxy.kubeconfig
 kubectl config use-context default --kubeconfig=kube-proxy.kubeconfig
-
+```
 * distribute 
-
+```
 for instance in veos-b veos-l1 veos-l2; do
   scp ${instance}.kubeconfig kube-proxy.kubeconfig admin@$instance:/mnt/flash/k8s/
 done
-
+```
 ## Secret data encryption
-
+```
 ENCRYPTION_KEY=`head -c 32 /dev/urandom | base64`
 
 cat > encryption-config.yaml <<EOF
@@ -274,17 +280,19 @@ resources:
               secret: ${ENCRYPTION_KEY}
       - identity: {}
 EOF
-
+```
 * distribute to master
-
+```
 for instance in veos-b; do
     scp encryption-config.yaml admin@$instance:/mnt/flash/k8s/
 done
+```
 
 ## Bootstrapping ETCD cluster (single node)
 
 login veos-b
 
+```
 cd /mnt/flash/k8s/
 sudo su
 echo """
@@ -293,12 +301,15 @@ echo """
 3.3.3.3 veos-l2
 """ >> /etc/hosts
 
+
 mkdir -p etc/etcd var/lib/etcd
 cp ca.pem kubernetes-key.pem kubernetes.pem etc/etcd/
 ETCD_NAME=`hostname -s`
 IP=1.1.1.1
 export PATH=$PATH:$(pwd)
+```
 
+```
 cat > etcd.service <<EOF
 [Unit]
 Description=etcd
@@ -338,24 +349,25 @@ sudo systemctl start etcd
 
 sudo iptables -I INPUT 1 -p tcp --dport 2380 -j ACCEPT
 sudo iptables -I INPUT 1 -p tcp --dport 2379 -j ACCEPT
-
+```
 
 * Verify 
+```
 ETCDCTL_API=3 etcdctl member list
 cde39b13d41b2417, started, veos-b, https://1.1.1.1:2380, https://1.1.1.1:2379
-
+```
 
 ## Bootstrapping control plane
 
-
+```
 cd /mnt/flash/k8s/
 IP=1.1.1.1
 export PATH=$PATH:$(pwd)
 
 mkdir -p var/lib/kubernetes/
 sudo cp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem encryption-config.yaml var/lib/kubernetes/
-
-
+```
+```
 cat > kube-apiserver.service <<EOF
 [Unit]
 Description=Kubernetes API Server
@@ -399,8 +411,8 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-
----
+```
+```
 
 cat > kube-controller-manager.service <<EOF
 [Unit]
@@ -426,8 +438,8 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-
----
+```
+```
 
 cat > kube-scheduler.service <<EOF
 [Unit]
@@ -445,8 +457,9 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+```
 
-----
+```
 
 sudo cp kube-apiserver.service kube-scheduler.service kube-controller-manager.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -469,10 +482,11 @@ NAME                 STATUS    MESSAGE             ERROR
 scheduler            Healthy   ok                  
 controller-manager   Healthy   ok                  
 etcd-0               Healthy   {"health":"true"}   
-
+```
 
 ## RBAC
 
+```
 cat <<EOF | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
@@ -494,7 +508,9 @@ rules:
     verbs:
       - "*"
 EOF
+```
 
+```
 cat <<EOF | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
@@ -523,10 +539,11 @@ curl -k https://1.1.1.1:6443/version
   "compiler": "gc",
   "platform": "linux/386"
 }
-
+```
 
 ## Worker nodes
 
+```
 sudo mkdir -p opt/cni/bin etc/cni/net.d
 
 service docker start
@@ -539,8 +556,8 @@ sudo mkdir -p var/lib/kubelet \
 sudo cp ${HOSTNAME}-key.pem ${HOSTNAME}.pem var/lib/kubelet/
 sudo cp ca.pem var/lib/kubernetes/
 sudo cp ${HOSTNAME}.kubeconfig var/lib/kubelet/kubeconfig
-
-
+```
+```
 cat > kubelet.service <<EOF
 [Unit]
 Description=Kubernetes Kubelet
@@ -578,7 +595,9 @@ EOF
 
 
 sudo cp kube-proxy.kubeconfig var/lib/kube-proxy/kubeconfig
+```
 
+```
 cat > kube-proxy.service <<EOF
 [Unit]
 Description=Kubernetes Kube Proxy
@@ -596,10 +615,51 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+```
 
+```
 sudo cp kubelet.service kube-proxy.service /etc/systemd/system/
 sudo systemctl daemon-reload
 
 sudo systemctl enable  kubelet kube-proxy
 sudo systemctl start  kubelet 
 sudo systemctl start   kube-proxy
+```
+
+# Outcomes
+
+All services are starting and running successfully with the exception of kube-proxy.
+kube-proxy starting leads to kernel panic and crash
+
+```
+I1228 22:46:59.327742    2807 oom_linux.go:65] attempting to set "/proc/self/oom_score_adj" to "-999"
+I1228 22:46:59.332387    2807 server.go:470] Running in resource-only container "/kube-proxy"
+I1228 22:46:59.344246    2807 healthcheck.go:309] Starting goroutine for healthz on 0.0.0.0:10256
+I1228 22:46:59.346197    2807 healthz.go:70] No default health checks specified. Installing the ping handler.
+I1228 22:46:59.346311    2807 healthz.go:74] Installing healthz checkers:"ping"
+I1228 22:46:59.354501    2807 server.go:591] getConntrackMax: using conntrack-min
+I1228 22:46:59.354620    2807 conntrack.go:98] Set sysctl 'net/netfilter/nf_conntrack_max' to 131072
+I1228 22:46:59.354894    2807 conntrack.go:52] Setting nf_conntrack_max to 131072
+I1228 22:46:59.358930    2807 mount_linux.go:196] Detected OS without systemd
+I1228 22:46:59.360128    2807 conntrack.go:83] Setting conntrack hashsize to 32768
+[  340.569648] BUG: sleeping function called from invalid context at ../kernel/locking/mutex.c:174
+[  340.570990] in_atomic(): 1, irqs_disabled(): 0, pid: 2811, name: kube-proxy
+[  340.572421] Preemption disabled at:[<ffffffff81069bb2>] param_attr_store+0x68/0x8c
+[  340.573647] BUG: scheduling while atomic: kube-proxy/2811/0x00000401
+[  340.574682] Preemption disabled at:[<ffffffff81069bb2>] param_attr_store+0x68/0x8c
+[  340.576127] BUG: scheduling while atomic: kube-proxy/2811/0x00000401
+[  340.577048] Preemption disabled at:[<ffffffff81069bb2>] param_attr_store+0x68/0x8c
+unexpected fault address [  340.578792] BUG: scheduling while atomic: kube-proxy/2811/0x00000401
+[  340.579754] Preemption disabled at:[<ffffffff81069bb2>] param_attr_store+0x68/0x8c
+0xb076500[  340.581260] BUG: scheduling while atomic: kube-proxy/2811/0x00000401
+[  340.582159] Preemption disabled at:[<ffffffff81069bb2>] param_attr_store+0x68/0x8c
+
+fatal error: fault
+[  340.583810] BUG: scheduling while atomic: kube-proxy/2811/0x00000401
+[  340.584663] Preemption disabled at:[<ffffffff81069bb2>] param_attr_store+0x68/0x8c
+[  340.587067] BUG: scheduling while atomic: kube-proxy/2811/0x00000401
+[  340.588728] Preemption disabled at:[<ffffffff81069bb2>] param_attr_store+0x68/0x8c
+[signal [  340.590196] BUG: scheduling while atomic: kube-proxy/2811/0x00000401
+[  340.591486] Preemption disabled at:[<ffffffff81069bb2>] param_attr_store+0x68/0x8c
+SIGSEGV: segmentation violation code=0x1 addr=0xb076500 pc=0x809b858]
+```
