@@ -11,6 +11,9 @@ Kubernetes ported to Arista EOS
 docker-topo --create k8s.yml 
 ```
 
+![](mini-ls.png)
+
+
 # Generate certificates
 
 ```
